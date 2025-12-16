@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Studio</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load QR Code Generator Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <!-- Load QR Code Scanner Library -->
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        /* Custom styles to enhance the native app feel */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light gray background */
+        }
+        .app-card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease-in-out;
+        }
+        .tab-active {
+            color: #3b82f6; /* Blue 500 */
+            border-bottom: 3px solid #3b82f6;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            color: #6b7280; /* Gray 500 */
+            border-bottom: 3px solid transparent;
+        }
+        /* Style for the QR code display area */
+        #qrcode-output img, #qrcode-output canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 0.5rem;
+            max-width: 100%; /* Ensure responsiveness */
+            height: auto;
+        }
+        /* Custom button styling */
+        .btn-primary {
+            background-image: linear-gradient(to right, #3b82f6, #2563eb);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 10px -2px rgba(59, 130, 246, 0.6);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background-color: #f1f5f9;
+            color: #3b82f6;
+            border: 1px solid #dbeafe;
+        }
+        .btn-secondary:hover {
+            background-color: #e0e7ff;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-start justify-center p-4 sm:p-6">
+
+    <!-- Main App Container (Simulating Android Card/Screen) -->
+    <div id="app-container" class="w-full max-w-sm bg-white app-card rounded-xl overflow-hidden mt-8">
+        
+        <!-- Header / Navigation Bar -->
+        <header class="bg-blue-600 p-4 shadow-md">
+            <h1 class="text-xl font-bold text-white">QR Code Studio</h1>
+        </header>
+
+        <!-- Tab Controls -->
+        <div class="flex border-b border-gray-200 bg-white sticky top-0 z-10">
+            <button id="tab-generate" class="flex-1 py-3 text-center text-sm tab-active transition-colors" onclick="setMode('generate')">
+                Generate Code
+            </button>
+            <button id="tab-scan" class="flex-1 py-3 text-center text-sm tab-inactive transition-colors" onclick="setMode('scan')">
+                Scan & Read Code
+            </button>
+        </div>
+
+        <!-- Content Area -->
+        <main class="p-4 space-y-6">
+
+            <!-- Firebase Global Variables (Initialization block - kept for environment compatibility) -->
+            <script type="module">
+                // These global variables are provided by the hosting environment.
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                // For a single-user utility app like this, complex Firestore logic is omitted, 
+                // but the variables are recognized as per platform requirements.
+                
+                // Example of how the variables would be used for auth:
+                /*
+                import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+                import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+                
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                
+                if (initialAuthToken) {
+                    signInWithCustomToken(auth, initialAuthAuthToken).catch(console.error);
+                } else {
+                    signInAnonymously(auth).catch(console.error);
+                }
+                */
+            </script>
+            
+            <!-- 1. Generator Content -->
+            <div id="content-generate" class="space-y-4">
+                <p class="text-sm text-gray-500">Enter any text, URL, email, or phone number to create a QR code.</p>
+                
+                <textarea id="qr-data-input" rows="4" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150" placeholder="e.g., https://google.com or contact details..."></textarea>
+                
+                <button onclick="generateQrCode()" class="btn-primary w-full py-3 rounded-xl text-white font-semibold shadow-lg uppercase tracking-wider">
+                    Generate QR Code
+                </button>
+
+                <div id="qrcode-container" class="pt-4 border-t border-gray-100 hidden">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3 text-center">Your Code</h2>
+                    <div id="qrcode-output" class="p-4 bg-white rounded-lg border-2 border-gray-100 max-w-[200px] mx-auto">
+                        <!-- QR Code will be drawn here -->
+                    </div>
+                    <button id="download-btn" onclick="downloadQrCode()" class="btn-secondary w-full mt-4 py-2 rounded-xl text-sm font-medium">
+                        Download PNG
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Scanner Content -->
+            <div id="content-scan" class="space-y-4 hidden">
+                <p class="text-sm text-gray-500">Scan a QR code using your camera or upload an image file.</p>
+                
+                <!-- QR Code Scanner Viewfinder -->
+                <div id="qr-reader" class="w-full bg-gray-100 rounded-xl overflow-hidden aspect-square"></div>
+                
+                <div id="scan-feedback" class="text-center p-3 text-sm text-gray-500 bg-gray-50 rounded-lg">
+                    Tap "Start Scanner" to begin live camera decoding.
+                </div>
+
+                <div class="flex space-x-2">
+                    <button id="start-scan-btn" onclick="startScanner()" class="btn-primary flex-1 py-3 rounded-xl text-white font-semibold uppercase tracking-wider text-sm">
+                        Start Camera Scan
+                    </button>
+                    <button id="stop-scan-btn" onclick="stopScanner()" class="btn-secondary flex-1 py-3 rounded-xl text-sm font-medium hidden">
+                        Stop Scan
+                    </button>
+                </div>
+                
+                <!-- NEW: Image Upload Section -->
+                <div class="pt-4 border-t border-gray-100">
+                    <input type="file" id="qr-code-file-input" accept="image/*" class="hidden" onchange="scanImageFile(event)">
+                    <button onclick="document.getElementById('qr-code-file-input').click()" class="btn-secondary w-full py-3 rounded-xl text-sm font-medium">
+                        Upload & Scan Image File
+                    </button>
+                </div>
+                <!-- END NEW: Image Upload Section -->
+
+                <div id="scan-result-container" class="pt-4 border-t border-gray-100 hidden">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Scan Result</h2>
+                    <div id="scan-result" class="p-3 bg-green-50 text-green-700 border border-green-200 rounded-lg break-words">
+                        <!-- Decoded text will appear here -->
+                    </div>
+                    <button onclick="openResult()" id="open-link-btn" class="btn-primary w-full mt-3 py-2 rounded-xl text-sm font-medium hidden">
+                        Open Link
+                    </button>
+                    <button onclick="copyResult()" id="copy-result-btn" class="btn-secondary w-full mt-2 py-2 rounded-xl text-sm font-medium">
+                        Copy Text
+                    </button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Custom Modal for Alerts/Notifications (instead of alert()) -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50 transition-opacity duration-300" onclick="hideModal()">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full space-y-4" onclick="event.stopPropagation()">
+            <h3 id="modal-title" class="text-lg font-bold text-gray-800">Notification</h3>
+            <p id="modal-message" class="text-gray-600 text-sm"></p>
+            <button onclick="hideModal()" class="btn-primary w-full py-2 rounded-lg text-white font-medium">
+                OK
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const qrDataInput = document.getElementById('qr-data-input');
+        const qrcodeOutput = document.getElementById('qrcode-output');
+        const qrcodeContainer = document.getElementById('qrcode-container');
+        const downloadBtn = document.getElementById('download-btn');
+        const scanResultDiv = document.getElementById('scan-result');
+        const scanFeedback = document.getElementById('scan-feedback');
+        const scanResultContainer = document.getElementById('scan-result-container');
+        const openLinkBtn = document.getElementById('open-link-btn');
+        const fileInput = document.getElementById('qr-code-file-input');
+        let html5QrCodeScanner = null;
+        let lastDecodedText = '';
+
+        // --- App Mode Management ---
+        window.setMode = async function(mode) {
+            document.getElementById('content-generate').classList.add('hidden');
+            document.getElementById('content-scan').classList.add('hidden');
+            document.getElementById('tab-generate').classList.remove('tab-active', 'tab-inactive');
+            document.getElementById('tab-scan').classList.remove('tab-active', 'tab-inactive');
+
+            if (mode === 'generate') {
+                document.getElementById('content-generate').classList.remove('hidden');
+                document.getElementById('tab-generate').classList.add('tab-active');
+                document.getElementById('tab-scan').classList.add('tab-inactive');
+                // Stop scanner if active when switching to generator mode
+                await stopScanner();
+            } else if (mode === 'scan') {
+                document.getElementById('content-scan').classList.remove('hidden');
+                document.getElementById('tab-scan').classList.add('tab-active');
+                document.getElementById('tab-generate').classList.add('tab-inactive');
+                // Scanner starts on button click, not tab switch
+                scanFeedback.textContent = 'Tap "Start Camera Scan" to begin live camera decoding.';
+            }
+        }
+
+        // --- Generator Functions ---
+
+        window.generateQrCode = function() {
+            const data = qrDataInput.value.trim();
+            if (!data) {
+                showModal('Error', 'Please enter some data (text or URL) to generate the QR code.');
+                return;
+            }
+
+            // Clear previous QR code
+            qrcodeOutput.innerHTML = '';
+            
+            try {
+                // Initialize QRCode.js
+                new QRCode(qrcodeOutput, {
+                    text: data,
+                    width: 200,
+                    height: 200,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H // High correction level
+                });
+                qrcodeContainer.classList.remove('hidden');
+                // Save to local storage for persistence (optional)
+                localStorage.setItem('lastQrData', data);
+            } catch (error) {
+                showModal('Generation Error', 'Could not generate QR code. ' + error.message);
+                console.error('QR Generation Error:', error);
+            }
+        }
+
+        window.downloadQrCode = function() {
+            const canvas = qrcodeOutput.querySelector('canvas');
+            if (canvas) {
+                // Check if the output is a Canvas (preferred)
+                downloadCanvas(canvas);
+            } else {
+                // Fallback for older browsers using <table> (unlikely with qrcodejs but good practice)
+                showModal('Download Error', 'Could not find a downloadable image element (canvas).');
+            }
+        }
+
+        function downloadCanvas(canvas) {
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'qrcode_studio_' + Date.now() + '.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showModal('Success', 'QR Code image downloaded successfully!');
+        }
+
+        // --- Scanner Functions ---
+
+        function onScanSuccess(decodedText, decodedResult) {
+            lastDecodedText = decodedText;
+            scanResultDiv.innerHTML = `
+                <p class="font-bold mb-1">Decoded Text:</p>
+                <p class="font-mono text-sm">${decodedText}</p>
+                <p class="mt-2 text-xs text-green-600">Format: ${decodedResult?.format?.formatName || 'QR_CODE'}</p>
+            `;
+            scanResultContainer.classList.remove('hidden');
+            
+            // Check if the decoded text looks like a URL
+            const isUrl = decodedText.startsWith('http://') || decodedText.startsWith('https://');
+            openLinkBtn.classList.toggle('hidden', !isUrl);
+
+            scanFeedback.textContent = 'Scan successful! Result displayed below.';
+            
+            // Immediately stop the scanner after a successful scan (if camera was running)
+            stopScanner(false); 
+        }
+
+        function onScanFailure(error) {
+            // Keep scanning, don't flood the console or UI with transient errors
+        }
+
+        window.startScanner = async function() {
+            if (html5QrCodeScanner.isScanning) {
+                return; // Already scanning
+            }
+
+            scanResultContainer.classList.add('hidden');
+            scanFeedback.textContent = 'Requesting camera access...';
+            document.getElementById('start-scan-btn').classList.add('hidden');
+            document.getElementById('stop-scan-btn').classList.remove('hidden');
+
+            try {
+                // Start scanning from the camera
+                await html5QrCodeScanner.start(
+                    { facingMode: "environment" }, // Prioritize back camera
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0 // Square viewfinder for mobile feel
+                    },
+                    onScanSuccess,
+                    onScanFailure
+                );
+                scanFeedback.textContent = 'Camera active. Point it at a QR code!';
+
+            } catch (err) {
+                // Handle camera access failure (e.g., user denied permission or no camera found)
+                await stopScanner(true);
+                showModal('Camera Error', 'Could not start camera scanner. Please ensure camera access is allowed. Try uploading an image file instead.');
+                scanFeedback.textContent = 'Camera failed. Check permissions or upload an image.';
+                console.error("Camera Start Error:", err);
+            }
+        }
+
+        window.stopScanner = async function(hideResult = true) {
+            if (html5QrCodeScanner && html5QrCodeScanner.isScanning) {
+                try {
+                    await html5QrCodeScanner.stop();
+                    scanFeedback.textContent = 'Scanner stopped.';
+                } catch (err) {
+                    console.error("Scanner Stop Error:", err);
+                    scanFeedback.textContent = 'Failed to stop scanner.';
+                }
+            }
+            document.getElementById('start-scan-btn').classList.remove('hidden');
+            document.getElementById('stop-scan-btn').classList.add('hidden');
+            
+            if (hideResult) {
+                 scanResultContainer.classList.add('hidden');
+            }
+        }
+        
+        // NEW: Image File Scanning Function
+        window.scanImageFile = async function(event) {
+            if (fileInput.files.length === 0) {
+                return;
+            }
+            const imageFile = fileInput.files[0];
+            
+            // Stop camera if running, and hide previous result
+            await stopScanner(true); 
+
+            scanFeedback.textContent = 'Scanning image...';
+            
+            try {
+                // html5QrCodeScanner is an instance of Html5Qrcode
+                const decodedText = await html5QrCodeScanner.scanFile(imageFile, true);
+                
+                // Pass the decoded text to the success handler
+                // We mock a minimal result object since scanFile only returns text
+                onScanSuccess(decodedText, { format: { formatName: "QR_CODE" } });
+            } catch (err) {
+                showModal('Scan Failed', 'Could not find a valid QR or Bar code in the uploaded image. Please ensure the code is clear and well-lit.');
+                scanFeedback.textContent = 'Scan failed. Try another image.';
+                scanResultContainer.classList.add('hidden');
+                console.error('File Scan Error:', err);
+            } finally {
+                // Clear the file input so the same file can be selected again
+                fileInput.value = null;
+            }
+        }
+
+        window.openResult = function() {
+            if (lastDecodedText) {
+                // Sanitize and navigate. Add http if missing for robust URL opening.
+                let url = lastDecodedText;
+                if (!url.match(/^(http|https):\/\//i)) {
+                    url = 'http://' + url;
+                }
+                window.open(url, '_blank');
+            }
+        }
+
+        window.copyResult = function() {
+            if (lastDecodedText) {
+                // Use the deprecated but reliable method for copying in iFrames
+                const tempInput = document.createElement('textarea');
+                tempInput.value = lastDecodedText;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                try {
+                    document.execCommand('copy');
+                    showModal('Copied!', 'The decoded text has been copied to your clipboard.');
+                } catch (err) {
+                    showModal('Error', 'Could not copy text automatically. Please select and copy manually.');
+                }
+                document.body.removeChild(tempInput);
+            }
+        }
+
+        // --- Custom Modal (Alert Replacement) ---
+        function showModal(title, message) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        window.hideModal = function() {
+            document.getElementById('modal').classList.add('hidden');
+          
