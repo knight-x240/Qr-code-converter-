@@ -416,4 +416,32 @@
 
         window.hideModal = function() {
             document.getElementById('modal').classList.add('hidden');
-          
+            document.getElementById('modal').classList.remove('flex');
+        }
+
+        // --- Initialization ---
+        window.onload = function() {
+            // Initialize Html5Qrcode instance once
+            html5QrCodeScanner = new Html5Qrcode("qr-reader");
+
+            // Set initial mode
+            setMode('generate');
+            
+            // Load last generated data if available
+            const savedData = localStorage.getItem('lastQrData');
+            if (savedData) {
+                qrDataInput.value = savedData;
+                generateQrCode();
+            }
+        };
+
+        // Ensure scanner stops when the user navigates away from the page
+        window.onbeforeunload = async function() {
+            // Check if instance exists before calling stop
+            if (html5QrCodeScanner) {
+                await stopScanner(true);
+            }
+        };
+    </script>
+</body>
+</html>
